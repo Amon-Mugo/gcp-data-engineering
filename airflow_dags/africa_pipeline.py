@@ -11,16 +11,21 @@ default_args = {
 with DAG(
     'africa_data_pipeline',
     default_args=default_args,
-    description='Query Africa data from BigQuery',
+    description='GCS to BigQuery to dbt pipeline',
     schedule='@daily',
     start_date=datetime(2026, 1, 1),
     catchup=False,
-    tags=['bigquery', 'africa']
+    tags=['bigquery', 'africa', 'gcs', 'dbt']
 ) as dag:
 
-    check_connection = BashOperator(
-        task_id='check_bq_connection',
-        bash_command='bq query --use_legacy_sql=false "SELECT COUNT(*) FROM africa_data.africa_population_gdp"'
+    check_gcs = BashOperator(
+        task_id='check_gcs_files',
+        bash_command='gsutil ls gs://gcp-de-learning-amon-kariuki/raw/'
+    )
+
+    load_to_bq = BashOperator(
+        task_id='load_gcs_to_bq',
+        bash_command='bq load --autodetect --source_format=CSV africa_data.africa_pipeline gs://gcp-de-learning-amon-kariuki/raw/Data_Africa.csv'
     )
 
     run_dbt = BashOperator(
@@ -28,4 +33,4 @@ with DAG(
         bash_command='cd ~/PROJECTS/dbt_projects/chicago_analysis && dbt run'
     )
 
-    check_connection >> run_dbt
+    check_gcs >> load_to_bq >> run_dbt
